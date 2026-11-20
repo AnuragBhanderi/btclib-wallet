@@ -48,6 +48,7 @@ from btclib_wallet.ledger import (
 from btclib_wallet.wallet import DescriptorWallet
 from tests import raises_alone
 from tests.ledger import (
+    Below,
     ClaimsInt,
     ClaimsStr,
     Conforming,
@@ -988,7 +989,7 @@ class _NotBelowTipChain(FakeChain):
         return ScriptHistory(answer.start, tip, answer.txs)
 
 
-def test_a_source_added_at_a_reader_s_negative_tip_is_refused(path: Path) -> None:
+def test_a_sync_at_a_reader_s_negative_tip_is_refused(path: Path) -> None:
     """A tip holding a negative int is refused, however its `<` answers."""
     chain = _NotBelowTipChain()
     with Ledger.create(path, "regtest", chain) as ledger:
@@ -999,6 +1000,32 @@ def test_a_source_added_at_a_reader_s_negative_tip_is_refused(path: Path) -> Non
     with Ledger.load(path, "regtest", chain) as again:
         assert len(again.sources) == 1
         assert again.tip is None
+
+
+class _BelowTipChain(FakeChain):
+    """A reader answering its tip as an int saying it is below any other."""
+
+    @override
+    def get_history(
+        self, scripts: Iterable[Octets | ScriptPubKey], start_height: int = 0
+    ) -> ScriptHistory:
+        answer = super().get_history(scripts, start_height)
+        tip = BlockRef(Below(answer.tip.height), answer.tip.block_id)
+        return ScriptHistory(answer.start, tip, answer.txs)
+
+
+def test_a_source_added_at_a_reader_s_tip_takes_the_int_it_holds(path: Path) -> None:
+    """`add_source` reads the int a reader's tip holds, not its `<`."""
+    chain = _BelowTipChain()
+    chain.mine(count=5)
+    with Ledger.create(path, "regtest", chain) as ledger:
+        ledger.add_source(source())
+        ledger.sync()
+        assert ledger.tip is not None
+        assert type(ledger.tip.height) is Below
+        assert _exact_int(ledger.tip.height) == 5
+        ledger.add_source(source("wpkh({}/84h/1h/7h/{}/*)"), None)
+    assert _rows(path, "SELECT birth FROM sources ORDER BY id") == [(0,), (5,)]
 
 
 class _JumpChain(FakeChain):
