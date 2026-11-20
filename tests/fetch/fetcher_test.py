@@ -75,6 +75,7 @@ from tests.fetch.esplora_history_test import _fetcher as esplora_history_fetcher
 from tests.fetch.esplora_test import BASE
 from tests.fetch.esplora_test import fetcher as esplora_fetcher
 from tests.fetch.history_test import OURS, _tx
+from tests.ledger import NotBelow
 from tests.refused_value_test import HEX, SCALAR, SPELLINGS
 from tests.secret_free import assert_secret_free
 
@@ -835,6 +836,21 @@ def test_block_header_height_refuses_a_negative_height() -> None:
         BTClibValueError, match="^invalid height: a negative int of 1 bits < 0$"
     ):
         block_header_height(-1)
+
+
+def test_block_header_height_refuses_a_height_holding_a_negative_int() -> None:
+    """Refuse a height whose `<` lies: the int it holds decides, not its `<`."""
+    with pytest.raises(
+        BTClibValueError, match="^invalid height: a negative int of 1 bits < 0$"
+    ):
+        block_header_height(NotBelow(-1))
+
+
+def test_block_header_height_returns_the_int_a_height_holds() -> None:
+    """A height holding a non-negative int passes, as the plain int it holds."""
+    result = block_header_height(NotBelow(7))
+    assert result == 7
+    assert type(result) is int
 
 
 @pytest.mark.parametrize("height", ["481824", 481824.0, None, True, False])

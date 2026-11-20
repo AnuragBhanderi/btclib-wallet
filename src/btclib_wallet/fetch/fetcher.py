@@ -37,7 +37,7 @@ from btclib.script import ScriptPubKey
 from btclib.tx import OutPoint, Tx, TxOut
 from btclib.utils import bytes_from_octets, is_integer, is_octets
 
-from btclib_wallet._refusal import _message_text, _quoted
+from btclib_wallet._refusal import _exact_int, _message_text, _quoted
 from btclib_wallet.exceptions import (
     FetchError,
     HttpError,
@@ -544,9 +544,10 @@ def block_header_height(height: int) -> int:
     """
     if not is_integer(height):
         raise BTClibTypeError(f"invalid height type: {type(height).__name__}")
-    if height < 0:
+    exact = _exact_int(height)
+    if exact < 0:
         raise BTClibValueError(f"invalid height: {_message_text(height)} < 0")
-    return height
+    return exact
 
 
 def block_header_from_raw(raw: Octets, *, network: str) -> BlockHeader:

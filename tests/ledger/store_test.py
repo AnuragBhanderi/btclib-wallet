@@ -28,6 +28,7 @@ from btclib.tx import Tx, TxOut
 from typing_extensions import override
 
 from btclib_wallet._refusal import _exact, _exact_int, _quoted
+from btclib_wallet.exceptions import FetchError
 from btclib_wallet.fetch.history import (
     BlockRef,
     HistoryTx,
@@ -987,18 +988,17 @@ class _NotBelowTipChain(FakeChain):
         return ScriptHistory(answer.start, tip, answer.txs)
 
 
-def test_a_source_added_at_a_reader_s_negative_tip_loads_again(path: Path) -> None:
-    """`add_source` reads the int a reader's tip holds, not its `<`."""
+def test_a_source_added_at_a_reader_s_negative_tip_is_refused(path: Path) -> None:
+    """A tip holding a negative int is refused, however its `<` answers."""
     chain = _NotBelowTipChain()
     with Ledger.create(path, "regtest", chain) as ledger:
         ledger.add_source(source())
-        ledger.sync()
-        assert ledger.tip is not None
-        assert _exact_int(ledger.tip.height) == -1
-        ledger.add_source(source("wpkh({}/84h/1h/7h/{}/*)"), None)
-    assert _rows(path, "SELECT birth FROM sources ORDER BY id") == [(0,), (0,)]
+        with raises_alone(FetchError, match="^get_history: a malformed answer$"):
+            ledger.sync()
+        assert ledger.tip is None
     with Ledger.load(path, "regtest", chain) as again:
-        assert len(again.sources) == 2
+        assert len(again.sources) == 1
+        assert again.tip is None
 
 
 class _JumpChain(FakeChain):
